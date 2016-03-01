@@ -55,13 +55,24 @@ import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
 import org.joda.time.Period;
 import org.joda.time.format.ISOPeriodFormat;
+import org.w3c.dom.Document;
+import org.xml.sax.InputSource;
 
+import javax.xml.parsers.DocumentBuilder;
+import javax.xml.parsers.DocumentBuilderFactory;
 import javax.xml.stream.XMLOutputFactory;
 import javax.xml.stream.XMLStreamException;
 import javax.xml.stream.XMLStreamWriter;
+import javax.xml.transform.OutputKeys;
+import javax.xml.transform.Transformer;
+import javax.xml.transform.TransformerFactory;
+import javax.xml.transform.dom.DOMSource;
+import javax.xml.transform.stream.StreamResult;
 
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
+import java.io.StringReader;
+import java.io.StringWriter;
 import java.lang.reflect.Field;
 import java.math.BigDecimal;
 import java.math.BigInteger;
@@ -554,10 +565,13 @@ public final class EwsUtilities {
     ByteArrayOutputStream outStream = new ByteArrayOutputStream();
     XMLOutputFactory factory = XMLOutputFactory.newInstance();
     XMLStreamWriter writer = factory.createXMLStreamWriter(outStream);
+
     EwsUtilities.writeTraceStartElement(writer, entryKind, false);
     writer.writeCharacters(lineSeparator);
     writer.writeCharacters(logEntry);
-    writer.writeCharacters(lineSeparator);
+    if (!logEntry.endsWith("\n")) {
+      writer.writeCharacters(lineSeparator);
+    }
     writer.writeEndElement();
     writer.writeCharacters(lineSeparator);
     writer.flush();
@@ -571,6 +585,30 @@ public final class EwsUtilities {
     formattedLogMessage = formattedLogMessage.replaceAll("&amp;", "&");
     outStream.close();
     return formattedLogMessage;
+  }
+
+  private static final DocumentBuilderFactory documentBuilderFactory = DocumentBuilderFactory.newInstance();
+  private static final TransformerFactory transformerFactory = TransformerFactory.newInstance();
+
+  public static String prettyXml(String xml) {
+    DocumentBuilder builder;
+    try {
+      synchronized (documentBuilderFactory) {
+        builder = documentBuilderFactory.newDocumentBuilder();
+      }
+      Document doc = builder.parse(new InputSource(new StringReader(xml)));
+      Transformer transformer;
+      synchronized (transformerFactory) {
+        transformer = transformerFactory.newTransformer();
+      }
+      transformer.setOutputProperty(OutputKeys.INDENT, "yes");
+      transformer.setOutputProperty("{http://xml.apache.org/xslt}indent-amount", "2");
+      StringWriter writer = new StringWriter();
+      transformer.transform(new DOMSource(doc), new StreamResult(writer));
+      return writer.toString();
+    } catch (Exception e) {
+      return xml;
+    }
   }
 
   /**
@@ -628,10 +666,14 @@ public final class EwsUtilities {
    */
   public static String formatLogMessageWithXmlContent(String traceTypeStr,
       ByteArrayOutputStream stream) {
+    return formatLogMessageWithXmlContent(traceTypeStr, stream.toString());
+  }
+
+  public static String formatLogMessageWithXmlContent(String traceTypeStr, String xml) {
     try {
-      return formatLogMessage(traceTypeStr, stream.toString());
+      return formatLogMessage(traceTypeStr, prettyXml(xml));
     } catch (Exception e) {
-      return stream.toString();
+      return xml;
     }
   }
 
