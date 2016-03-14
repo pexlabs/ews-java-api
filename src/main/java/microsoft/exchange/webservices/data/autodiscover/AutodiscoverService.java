@@ -38,6 +38,7 @@ import microsoft.exchange.webservices.data.autodiscover.response.GetUserSettings
 import microsoft.exchange.webservices.data.autodiscover.response.GetUserSettingsResponseCollection;
 import microsoft.exchange.webservices.data.core.EwsUtilities;
 import microsoft.exchange.webservices.data.core.EwsXmlReader;
+import microsoft.exchange.webservices.data.core.ExchangeFactory;
 import microsoft.exchange.webservices.data.core.ExchangeServiceBase;
 import microsoft.exchange.webservices.data.core.request.HttpClientWebRequest;
 import microsoft.exchange.webservices.data.core.request.HttpWebRequest;
@@ -55,6 +56,7 @@ import microsoft.exchange.webservices.data.core.exception.service.local.ServiceV
 import microsoft.exchange.webservices.data.core.exception.service.local.ServiceVersionException;
 import microsoft.exchange.webservices.data.misc.OutParam;
 import microsoft.exchange.webservices.data.security.XmlNodeType;
+import org.apache.http.impl.client.CloseableHttpClient;
 
 import javax.xml.stream.XMLStreamException;
 
@@ -1759,8 +1761,7 @@ public class AutodiscoverService extends ExchangeServiceBase
    * @param requestedServerVersion The requested server version
    * @throws ArgumentException on validation error
    */
-  public AutodiscoverService(URI url,
-      ExchangeVersion requestedServerVersion) throws ArgumentException {
+  public AutodiscoverService(URI url, ExchangeVersion requestedServerVersion) throws ArgumentException {
     this(url, url.getHost(), requestedServerVersion);
   }
 
@@ -1771,13 +1772,12 @@ public class AutodiscoverService extends ExchangeServiceBase
    * @param domain The domain that will be used to determine the URL of the service
    * @throws ArgumentException on validation error
    */
-  public AutodiscoverService(URI url, String domain)
-      throws ArgumentException {
-    super();
-    EwsUtilities.validateDomainNameAllowNull(domain, "domain");
-    this.url = url;
-    this.domain = domain;
-    this.dnsClient = new AutodiscoverDnsClient(this);
+  public AutodiscoverService(URI url, String domain) throws ArgumentException {
+    this(url, domain, null);
+  }
+
+  public AutodiscoverService(URI url, String domain, ExchangeVersion requestedServerVersion) {
+    this(ExchangeFactory.defaultFactory().httpClient(), url, domain, requestedServerVersion);
   }
 
   /**
@@ -1789,9 +1789,9 @@ public class AutodiscoverService extends ExchangeServiceBase
    * @param requestedServerVersion The requested server version.
    * @throws ArgumentException on validation error
    */
-  public AutodiscoverService(URI url, String domain,
-      ExchangeVersion requestedServerVersion) throws ArgumentException {
-    super(requestedServerVersion);
+  public AutodiscoverService(CloseableHttpClient httpClient,
+      URI url, String domain, ExchangeVersion requestedServerVersion) throws ArgumentException {
+    super(httpClient, requestedServerVersion);
     EwsUtilities.validateDomainNameAllowNull(domain, "domain");
 
     this.url = url;

@@ -23,19 +23,6 @@
 
 package microsoft.exchange.webservices.data.core;
 
-import java.net.URI;
-import java.net.URISyntaxException;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.Collection;
-import java.util.Date;
-import java.util.EnumSet;
-import java.util.HashMap;
-import java.util.Iterator;
-import java.util.List;
-import java.util.Locale;
-import java.util.Map;
-
 import microsoft.exchange.webservices.data.autodiscover.AutodiscoverService;
 import microsoft.exchange.webservices.data.autodiscover.IAutodiscoverRedirectionUrl;
 import microsoft.exchange.webservices.data.autodiscover.enumeration.UserSettingName;
@@ -193,11 +180,24 @@ import microsoft.exchange.webservices.data.search.filter.SearchFilter;
 import microsoft.exchange.webservices.data.sync.ChangeCollection;
 import microsoft.exchange.webservices.data.sync.FolderChange;
 import microsoft.exchange.webservices.data.sync.ItemChange;
-
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
+import org.apache.http.impl.client.CloseableHttpClient;
 import org.w3c.dom.Document;
 import org.w3c.dom.Node;
+
+import java.net.URI;
+import java.net.URISyntaxException;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collection;
+import java.util.Date;
+import java.util.EnumSet;
+import java.util.HashMap;
+import java.util.Iterator;
+import java.util.List;
+import java.util.Locale;
+import java.util.Map;
 
 /**
  * Represents a binding to the Exchange Web Services.
@@ -3708,13 +3708,12 @@ public class ExchangeService extends ExchangeServiceBase implements IAutodiscove
 
   // region Constructors
 
-  /**
-   * Initializes a new instance of the <see cref="ExchangeService"/> class,
-   * targeting the specified version of EWS and scoped to the to the system's
-   * current time zone.
-   */
   public ExchangeService() {
     super();
+  }
+
+  public ExchangeService(ExchangeVersion requestedServerVersion) {
+    this(ExchangeFactory.defaultFactory().httpClient(), requestedServerVersion);
   }
 
   /**
@@ -3724,8 +3723,8 @@ public class ExchangeService extends ExchangeServiceBase implements IAutodiscove
    *
    * @param requestedServerVersion the requested server version
    */
-  public ExchangeService(ExchangeVersion requestedServerVersion) {
-    super(requestedServerVersion);
+  public ExchangeService(CloseableHttpClient httpClient, ExchangeVersion requestedServerVersion) {
+    super(httpClient, requestedServerVersion);
   }
 
   // Utilities

@@ -30,7 +30,6 @@ import java.io.IOException;
 import java.net.MalformedURLException;
 import java.net.URI;
 import java.net.URISyntaxException;
-import java.security.GeneralSecurityException;
 import java.text.DateFormat;
 import java.text.SimpleDateFormat;
 import java.util.Date;
@@ -56,29 +55,16 @@ import microsoft.exchange.webservices.data.credential.ExchangeCredentials;
 import microsoft.exchange.webservices.data.misc.EwsTraceListener;
 import microsoft.exchange.webservices.data.misc.ITraceListener;
 
-import org.apache.commons.io.IOUtils;
-import org.apache.commons.logging.Log;
-import org.apache.commons.logging.LogFactory;
-import org.apache.http.client.AuthenticationStrategy;
 import org.apache.http.client.CookieStore;
 import org.apache.http.client.protocol.HttpClientContext;
-import org.apache.http.config.Registry;
-import org.apache.http.config.RegistryBuilder;
-import org.apache.http.conn.HttpClientConnectionManager;
-import org.apache.http.conn.socket.ConnectionSocketFactory;
-import org.apache.http.conn.socket.PlainConnectionSocketFactory;
 import org.apache.http.impl.client.BasicCookieStore;
 import org.apache.http.impl.client.CloseableHttpClient;
-import org.apache.http.impl.client.HttpClients;
-import org.apache.http.impl.conn.BasicHttpClientConnectionManager;
-import org.apache.http.impl.conn.PoolingHttpClientConnectionManager;
 
 /**
  * Represents an abstract binding to an Exchange Service.
  */
 public abstract class ExchangeServiceBase implements Closeable {
-  
-  private static final Log LOG = LogFactory.getLog(ExchangeService.class);
+  protected final CloseableHttpClient httpClient;
 
   /**
    * The credential.
@@ -133,7 +119,7 @@ public abstract class ExchangeServiceBase implements Closeable {
   /**
    * The requested server version.
    */
-  private ExchangeVersion requestedServerVersion = ExchangeVersion.Exchange2010_SP2;
+  private ExchangeVersion requestedServerVersion;
 
   /**
    * The server info.
@@ -146,43 +132,29 @@ public abstract class ExchangeServiceBase implements Closeable {
 
   private WebProxy webProxy;
 
-  protected CloseableHttpClient httpClient;
-
   protected HttpClientContext httpContext;
-
-  protected CloseableHttpClient	httpPoolingClient;
-  
-  private int maximumPoolingConnections = 10;
-
-
-//  protected HttpClientWebRequest request = null;
-
-  // protected static HttpStatusCode AccountIsLocked = (HttpStatusCode)456;
 
   /**
    * Default UserAgent.
    */
   private static String defaultUserAgent = "ExchangeServicesClient/" + EwsUtilities.getBuildVersion();
 
-  /**
-   * Initializes a new instance.
-   *
-   * This constructor performs the initialization of the HTTP connection manager, so it should be called by
-   * every other constructor.
-   */
   protected ExchangeServiceBase() {
+    this(ExchangeFactory.defaultFactory().httpClient(), ExchangeFactory.DEFAULT_VERSION);
+  }
+
+  protected ExchangeServiceBase(CloseableHttpClient httpClient, ExchangeVersion requestedServerVersion) {
+    this.httpClient = httpClient;
+    this.requestedServerVersion = requestedServerVersion;
+    if (httpClient == null) {
+      throw new NullPointerException("httpClient");
+    }
     setUseDefaultCredentials(true);
-    initializeHttpClient();
     initializeHttpContext();
   }
 
-  protected ExchangeServiceBase(ExchangeVersion requestedServerVersion) {
-    this();
-    this.requestedServerVersion = requestedServerVersion;
-  }
-
   protected ExchangeServiceBase(ExchangeServiceBase service, ExchangeVersion requestedServerVersion) {
-    this(requestedServerVersion);
+    this(service.httpClient, requestedServerVersion);
     this.useDefaultCredentials = service.getUseDefaultCredentials();
     this.credentials = service.getCredentials();
     this.traceEnabled = service.isTraceEnabled();
@@ -193,64 +165,6 @@ public abstract class ExchangeServiceBase implements Closeable {
     this.userAgent = service.getUserAgent();
     this.acceptGzipEncoding = service.getAcceptGzipEncoding();
     this.httpHeaders = service.getHttpHeaders();
-  }
-
-  private void initializeHttpClient() {
-    Registry<ConnectionSocketFactory> registry = createConnectionSocketFactoryRegistry();
-    HttpClientConnectionManager httpConnectionManager = new BasicHttpClientConnectionManager(registry);
-    AuthenticationStrategy authStrategy = new CookieProcessingTargetAuthenticationStrategy();
-
-    httpClient = HttpClients.custom()
-      .setConnectionManager(httpConnectionManager)
-      .setTargetAuthenticationStrategy(authStrategy)
-      .build();
-  }
-
-  private void initializeHttpPoolingClient() {
-    Registry<ConnectionSocketFactory> registry = createConnectionSocketFactoryRegistry();
-    PoolingHttpClientConnectionManager httpConnectionManager = new PoolingHttpClientConnectionManager(registry);
-    httpConnectionManager.setMaxTotal(maximumPoolingConnections);
-    httpConnectionManager.setDefaultMaxPerRoute(maximumPoolingConnections);
-    AuthenticationStrategy authStrategy = new CookieProcessingTargetAuthenticationStrategy();
-
-    httpPoolingClient = HttpClients.custom()
-        .setConnectionManager(httpConnectionManager)
-        .setTargetAuthenticationStrategy(authStrategy)
-        .build();
-  }
-
-  /**
-   * Sets the maximum number of connections for the pooling connection manager which is used for
-   * subscriptions.
-   * <p>
-   * Default is 10.
-   * </p>
-   * 
-   * @param maximumPoolingConnections Maximum number of pooling connections
-   */
-  public void setMaximumPoolingConnections(int maximumPoolingConnections) {
-    if (maximumPoolingConnections < 1)
-      throw new IllegalArgumentException("maximumPoolingConnections must be 1 or greater");
-    this.maximumPoolingConnections = maximumPoolingConnections;
-  }
-
-  /**
-   * Create registry with configured {@link ConnectionSocketFactory} instances.
-   * Override this method to change how to work with different schemas.
-   *
-   * @return registry object
-   */
-  protected Registry<ConnectionSocketFactory> createConnectionSocketFactoryRegistry() {
-    try {
-      return RegistryBuilder.<ConnectionSocketFactory>create()
-        .register(EWSConstants.HTTP_SCHEME, new PlainConnectionSocketFactory())
-        .register(EWSConstants.HTTPS_SCHEME, EwsSSLProtocolSocketFactory.build(null))
-        .build();
-    } catch (GeneralSecurityException e) {
-      throw new RuntimeException(
-        "Could not initialize ConnectionSocketFactory instances for HttpClientConnectionManager", e
-      );
-    }
   }
 
   /**
@@ -265,8 +179,6 @@ public abstract class ExchangeServiceBase implements Closeable {
 
   @Override
   public void close() {
-    IOUtils.closeQuietly(httpClient);
-    IOUtils.closeQuietly(httpPoolingClient);
   }
 
   // Event handlers
@@ -343,12 +255,7 @@ public abstract class ExchangeServiceBase implements Closeable {
       String strErr = String.format("Protocol %s isn't supported for service request.", scheme);
       throw new ServiceLocalException(strErr);
     }
-
-    if (httpPoolingClient == null) {
-      initializeHttpPoolingClient();
-    }
-
-    HttpClientWebRequest request = new HttpClientWebRequest(httpPoolingClient, httpContext);
+    HttpClientWebRequest request = new HttpClientWebRequest(httpClient, httpContext);
     prepareHttpWebRequestForUrl(url, acceptGzipEncoding, allowAutoRedirect, request, timeout);
 
     return request;
