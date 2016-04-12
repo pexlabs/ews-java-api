@@ -252,4 +252,9 @@ public class ItemAttachment extends Attachment implements IServiceObjectChangedD
     this.itemChanged(serviceObject);
   }
 
+  @Override public void close() throws Exception {
+    if (item != null) {
+      item.close();
+    }
+  }
 }

@@ -55,7 +55,7 @@ public class ByteArrayArray extends ComplexProperty {
 
     if (reader.getLocalName().equalsIgnoreCase(
         ByteArrayArray.ItemXmlElementName)) {
-      this.content.add(reader.readBase64ElementValue());
+      this.content.add(reader.readBase64ElementValueAsBytes());
       return true;
     } else {
       return false;

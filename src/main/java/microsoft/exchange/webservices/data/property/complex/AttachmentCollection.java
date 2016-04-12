@@ -23,6 +23,7 @@
 
 package microsoft.exchange.webservices.data.property.complex;
 
+import com.google.common.io.ByteSource;
 import microsoft.exchange.webservices.data.attribute.EditorBrowsable;
 import microsoft.exchange.webservices.data.core.EwsUtilities;
 import microsoft.exchange.webservices.data.core.XmlElementNames;
@@ -40,8 +41,6 @@ import microsoft.exchange.webservices.data.core.exception.misc.InvalidOperationE
 import microsoft.exchange.webservices.data.core.exception.service.local.ServiceLocalException;
 import microsoft.exchange.webservices.data.core.exception.service.local.ServiceValidationException;
 
-import java.io.File;
-import java.io.InputStream;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Enumeration;
@@ -51,7 +50,7 @@ import java.util.Enumeration;
  */
 @EditorBrowsable(state = EditorBrowsableState.Never)
 public final class AttachmentCollection extends ComplexPropertyCollection<Attachment>
-    implements IOwnedProperty {
+    implements IOwnedProperty, AutoCloseable {
 
   // The item owner that owns this attachment collection
   /**
@@ -88,69 +87,12 @@ public final class AttachmentCollection extends ComplexPropertyCollection<Attach
     this.owner = item;
   }
 
-  /**
-   * Adds a file attachment to the collection.
-   *
-   * @param fileName the file name
-   * @return A FileAttachment instance.
-   */
-  public FileAttachment addFileAttachment(String fileName) {
-    return this.addFileAttachment(new File(fileName).getName(), fileName);
-  }
 
-  /**
-   * Adds a file attachment to the collection.
-   *
-   * @param name     accepts String display name of the new attachment.
-   * @param fileName accepts String name of the file representing the content of
-   *                 the attachment.
-   * @return A FileAttachment instance.
-   */
-  public FileAttachment addFileAttachment(String name, String fileName) {
-    FileAttachment fileAttachment = new FileAttachment(this.owner);
-    fileAttachment.setName(name);
-    fileAttachment.setFileName(fileName);
-
-    this.internalAdd(fileAttachment);
-
-    return fileAttachment;
-  }
-
-  /**
-   * Adds a file attachment to the collection.
-   *
-   * @param name          accepts String display name of the new attachment.
-   * @param contentStream accepts InputStream stream from which to read the content of
-   *                      the attachment.
-   * @return A FileAttachment instance.
-   */
-  public FileAttachment addFileAttachment(String name,
-      InputStream contentStream) {
-    FileAttachment fileAttachment = new FileAttachment(this.owner);
-    fileAttachment.setName(name);
-    fileAttachment.setContentStream(contentStream);
-
-    this.internalAdd(fileAttachment);
-
-    return fileAttachment;
-  }
-
-  /**
-   * Adds a file attachment to the collection.
-   *
-   * @param name    the name
-   * @param content accepts byte byte arrays representing the content of the
-   *                attachment.
-   * @return FileAttachment
-   */
-  public FileAttachment addFileAttachment(String name, byte[] content) {
-    FileAttachment fileAttachment = new FileAttachment(this.owner);
-    fileAttachment.setName(name);
-    fileAttachment.setContent(content);
-
-    this.internalAdd(fileAttachment);
-
-    return fileAttachment;
+  public FileAttachment addFileAttachment(ByteSource content) {
+    FileAttachment attachment = new FileAttachment(this.owner);
+    attachment.setContent(content);
+    this.internalAdd(attachment);
+    return attachment;
   }
 
   /**
@@ -473,4 +415,9 @@ public final class AttachmentCollection extends ComplexPropertyCollection<Attach
     }
   }
 
+  @Override public void close() throws Exception {
+    for (Attachment attachment : getItems()) {
+      attachment.close();
+    }
+  }
 }

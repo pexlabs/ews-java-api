@@ -23,19 +23,23 @@
 
 package microsoft.exchange.webservices.data.property.complex;
 
+import com.google.common.io.ByteSource;
 import microsoft.exchange.webservices.data.core.EwsServiceXmlReader;
 import microsoft.exchange.webservices.data.core.EwsServiceXmlWriter;
 import microsoft.exchange.webservices.data.core.XmlAttributeNames;
 import microsoft.exchange.webservices.data.core.exception.service.local.ServiceXmlDeserializationException;
 import microsoft.exchange.webservices.data.core.exception.service.local.ServiceXmlSerializationException;
+import microsoft.exchange.webservices.data.util.CachedContent;
 import org.apache.commons.codec.binary.Base64;
 
 import javax.xml.stream.XMLStreamException;
 
+import java.io.IOException;
+
 /**
  * Represents the MIME content of an item.
  */
-public final class MimeContent extends ComplexProperty {
+public final class MimeContent extends ComplexProperty implements AutoCloseable {
 
   /**
    * The character set.
@@ -45,7 +49,10 @@ public final class MimeContent extends ComplexProperty {
   /**
    * The content.
    */
-  private byte[] content;
+  private ByteSource content;
+
+  // Cached content if this is part of a response
+  private CachedContent cachedContent;
 
   /**
    * Initializes a new instance of the class.
@@ -59,7 +66,7 @@ public final class MimeContent extends ComplexProperty {
    * @param characterSet the character set
    * @param content      the content
    */
-  public MimeContent(String characterSet, byte[] content) {
+  public MimeContent(String characterSet, ByteSource content) {
     this();
     this.characterSet = characterSet;
     this.content = content;
@@ -88,7 +95,15 @@ public final class MimeContent extends ComplexProperty {
   @Override
   public void readTextValueFromXml(EwsServiceXmlReader reader)
       throws XMLStreamException, ServiceXmlDeserializationException {
-    this.content = Base64.decodeBase64(reader.readValue());
+    if (cachedContent != null) {
+      cachedContent.delete();
+    }
+    try {
+      cachedContent = reader.readBase64ElementValue();
+    } catch (Exception e) {
+      throw new ServiceXmlDeserializationException("Error reading base64 content", e);
+    }
+    content = cachedContent.source();
   }
 
   /**
@@ -108,12 +123,16 @@ public final class MimeContent extends ComplexProperty {
    * Writes elements to XML.
    *
    * @param writer the writer
-   * @throws XMLStreamException the XML stream exception
+   * @throws ServiceXmlSerializationException the service xml serialization exception
    */
   public void writeElementsToXml(EwsServiceXmlWriter writer)
-      throws XMLStreamException {
-    if (this.content != null && this.content.length > 0) {
-      writer.writeBase64ElementValue(this.content);
+      throws ServiceXmlSerializationException {
+    if (this.content != null) {
+      try {
+        writer.writeBase64ElementValue(this.content);
+      } catch (IOException e) {
+        throw new ServiceXmlSerializationException("Unable to write base64 encoded element", e);
+      }
     }
   }
 
@@ -140,7 +159,7 @@ public final class MimeContent extends ComplexProperty {
    *
    * @return the content
    */
-  public byte[] getContent() {
+  public ByteSource getContent() {
     return this.content;
   }
 
@@ -149,36 +168,17 @@ public final class MimeContent extends ComplexProperty {
    *
    * @param content the new content
    */
-  public void setContent(byte[] content) {
-    this.canSetFieldValue(this.content, content);
+  public void setContent(ByteSource content) {
+    this.content = content;
   }
 
-  /**
-   * Writes attribute to XML.
-   *
-   * @return the string
-   */
+  // Disposes of any resources associated with this object.
   @Override
-  public String toString() {
-    if (this.getContent() == null) {
-      return "";
-    } else {
-      try {
-
-        // Try to convert to original MIME content using specified
-        // charset. If this fails,
-        // return the Base64 representation of the content.
-        // Note: Encoding.GetString can throw DecoderFallbackException
-        // which is a subclass
-        // of ArgumentException.
-        String charSet = (this.getCharacterSet() == null ||
-            this.getCharacterSet().isEmpty()) ?
-            "UTF-8" : this.getCharacterSet();
-        return new String(this.getContent(), charSet);
-      } catch (Exception e) {
-        return Base64.encodeBase64String(this.getContent());
-      }
+  public void close() {
+    if (cachedContent != null) {
+      cachedContent.delete();
+      cachedContent = null;
+      content = null;
     }
   }
-
 }

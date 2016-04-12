@@ -23,6 +23,11 @@
 
 package microsoft.exchange.webservices.data.core;
 
+import static com.google.common.io.BaseEncoding.base64;
+
+import com.google.common.io.ByteSink;
+import com.google.common.io.ByteSource;
+import com.google.common.io.CharSink;
 import microsoft.exchange.webservices.data.core.enumeration.misc.XmlNamespace;
 import microsoft.exchange.webservices.data.core.exception.service.local.ServiceXmlSerializationException;
 import microsoft.exchange.webservices.data.misc.OutParam;
@@ -45,10 +50,10 @@ import javax.xml.stream.XMLOutputFactory;
 import javax.xml.stream.XMLStreamException;
 import javax.xml.stream.XMLStreamWriter;
 
-import java.io.ByteArrayOutputStream;
+import java.io.BufferedWriter;
 import java.io.IOException;
-import java.io.InputStream;
 import java.io.OutputStream;
+import java.io.Writer;
 import java.util.Date;
 
 /**
@@ -466,12 +471,8 @@ public class EwsServiceXmlWriter implements IDisposable {
       writeNode(n, writer);
     }
 
-
     writer.writeEndElement();
-
   }
-
-
 
   /**
    * Writes the element value.
@@ -496,7 +497,6 @@ public class EwsServiceXmlWriter implements IDisposable {
    */
   public void writeBase64ElementValue(byte[] buffer)
       throws XMLStreamException {
-
     String strValue = Base64.encodeBase64String(buffer);
     this.xmlWriter.writeCharacters(strValue);//Base64.encode(buffer));
   }
@@ -504,28 +504,26 @@ public class EwsServiceXmlWriter implements IDisposable {
   /**
    * Writes the base64-encoded element value.
    *
-   * @param stream the stream
+   * @param source the source containing bytes to be written
    * @throws IOException signals that an I/O exception has occurred
-   * @throws XMLStreamException the XML stream exception
    */
-  public void writeBase64ElementValue(InputStream stream) throws IOException,
-      XMLStreamException {
-
-    ByteArrayOutputStream bos = new ByteArrayOutputStream();
-    byte[] buf = new byte[BufferSize];
-    try {
-      for (int readNum; (readNum = stream.read(buf)) != -1; ) {
-        bos.write(buf, 0, readNum);
+  public void writeBase64ElementValue(ByteSource source) throws IOException {
+    ByteSink sink = base64().encodingSink(new CharSink() {
+      @Override public Writer openStream() throws IOException {
+        return new BufferedWriter(new Writer() {
+          @Override public void write(char[] cbuf, int off, int len) throws IOException {
+            try {
+              xmlWriter.writeCharacters(cbuf, off, len);
+            } catch (XMLStreamException e) {
+              throw new IOException("Error writing XML", e);
+            }
+          }
+          @Override public void flush() {}
+          @Override public void close() {}
+        });
       }
-    } catch (IOException ex) {
-      LOG.error(ex);
-    } finally {
-      bos.close();
-    }
-    byte[] bytes = bos.toByteArray();
-    String strValue = Base64.encodeBase64String(bytes);
-    this.xmlWriter.writeCharacters(strValue);
-
+    });
+    source.copyTo(sink);
   }
 
   /**

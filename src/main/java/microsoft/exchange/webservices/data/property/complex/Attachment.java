@@ -43,7 +43,7 @@ import java.util.Date;
 /**
  * Represents an attachment to an item.
  */
-public abstract class Attachment extends ComplexProperty {
+public abstract class Attachment extends ComplexProperty implements AutoCloseable {
 
   private static final Log LOG = LogFactory.getLog(Attachment.class);
 

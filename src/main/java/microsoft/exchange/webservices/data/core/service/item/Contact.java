@@ -23,6 +23,7 @@
 
 package microsoft.exchange.webservices.data.core.service.item;
 
+import com.google.common.io.ByteSource;
 import microsoft.exchange.webservices.data.attribute.Attachable;
 import microsoft.exchange.webservices.data.attribute.ServiceObjectDefinition;
 import microsoft.exchange.webservices.data.core.EwsUtilities;
@@ -147,44 +148,11 @@ public class Contact extends Item {
    * @param content the new contact picture
    * @throws Exception the exception
    */
-  public void setContactPicture(byte[] content) throws Exception {
+  public void setContactPicture(ByteSource content) throws Exception {
     EwsUtilities.validateMethodVersion(this.getService(), ExchangeVersion.Exchange2010, "SetContactPicture");
 
     internalRemoveContactPicture();
-    FileAttachment fileAttachment = getAttachments().addFileAttachment(
-        ContactPictureName, content);
-    fileAttachment.setIsContactPhoto(true);
-  }
-
-  /**
-   * Sets the contact's picture using the specified stream.
-   *
-   * @param contentStream the new contact picture
-   * @throws Exception the exception
-   */
-  public void setContactPicture(InputStream contentStream) throws Exception {
-    EwsUtilities.validateMethodVersion(this.getService(),
-        ExchangeVersion.Exchange2010, "SetContactPicture");
-
-    internalRemoveContactPicture();
-    FileAttachment fileAttachment = getAttachments().addFileAttachment(
-        ContactPictureName, contentStream);
-    fileAttachment.setIsContactPhoto(true);
-  }
-
-  /**
-   * Sets the contact's picture using the specified file.
-   *
-   * @param fileName the new contact picture
-   * @throws Exception the exception
-   */
-  public void setContactPicture(String fileName) throws Exception {
-    EwsUtilities.validateMethodVersion(this.getService(),
-        ExchangeVersion.Exchange2010, "SetContactPicture");
-
-    internalRemoveContactPicture();
-    FileAttachment fileAttachment = getAttachments().addFileAttachment(
-        new File(fileName).getName(), fileName);
+    FileAttachment fileAttachment = getAttachments().addFileAttachment(content);
     fileAttachment.setIsContactPhoto(true);
   }
 
@@ -226,6 +194,7 @@ public class Contact extends Item {
           .getAttachments().getPropertyAtIndex(index);
       if (fileAttachment != null) {
         if (fileAttachment.isContactPhoto()) {
+          fileAttachment.close();
           this.getAttachments().remove(fileAttachment);
         }
       }

@@ -76,7 +76,7 @@
         <!-- Eliminates the file encoding warning. Of course, all of your files
             should probably be UTF-8 nowadays. -->
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
-        <javaLanguage.version>1.6</javaLanguage.version>
+        <javaLanguage.version>1.7</javaLanguage.version>
         <javadoc.doclint.param/>
 
         <!--  Dependencies [BUILD]:  -->
@@ -129,6 +129,7 @@
             </activation>
             <build>
                 <plugins>
+<!--
                     <plugin>
                     <groupId>org.apache.maven.plugins</groupId>
                     <artifactId>maven-checkstyle-plugin</artifactId>
@@ -146,6 +147,7 @@
                             </execution>
                         </executions>
                     </plugin>
+-->
                 </plugins>
             </build>
         </profile>
@@ -213,6 +215,12 @@
     </distributionManagement>
 
     <dependencies>
+        <dependency>
+            <groupId>com.google.guava</groupId>
+            <artifactId>guava</artifactId>
+            <version>19.0</version>
+        </dependency>
+
         <dependency>
             <groupId>org.apache.httpcomponents</groupId>
             <artifactId>httpclient</artifactId>
@@ -318,6 +326,7 @@
                     <target>${javaLanguage.version}</target>
                 </configuration>
             </plugin>
+<!--
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-javadoc-plugin</artifactId>
@@ -335,6 +344,7 @@
                     </execution>
                 </executions>
             </plugin>
+-->
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-source-plugin</artifactId>
@@ -348,6 +358,7 @@
                     </execution>
                 </executions>
             </plugin>
+<!--
             <plugin>
                 <groupId>org.codehaus.mojo</groupId>
                 <artifactId>animal-sniffer-maven-plugin</artifactId>
@@ -389,6 +400,7 @@
                     </execution>
                 </executions>
             </plugin>
+-->
             <!-- Deployment / build plugins END -->
         </plugins>
         <!-- Used to bump all of the various core plugins up to Maven current.

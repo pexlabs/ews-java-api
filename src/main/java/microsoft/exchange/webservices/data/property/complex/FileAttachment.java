@@ -23,6 +23,7 @@
 
 package microsoft.exchange.webservices.data.property.complex;
 
+import com.google.common.io.ByteSource;
 import microsoft.exchange.webservices.data.core.EwsServiceXmlReader;
 import microsoft.exchange.webservices.data.core.EwsServiceXmlWriter;
 import microsoft.exchange.webservices.data.core.EwsUtilities;
@@ -33,38 +34,19 @@ import microsoft.exchange.webservices.data.core.enumeration.misc.XmlNamespace;
 import microsoft.exchange.webservices.data.core.exception.service.local.ServiceValidationException;
 import microsoft.exchange.webservices.data.core.exception.service.local.ServiceVersionException;
 
-import org.apache.commons.io.IOUtils;
-
-import java.io.File;
-import java.io.FileInputStream;
-import java.io.FileOutputStream;
-import java.io.InputStream;
-import java.io.OutputStream;
+import microsoft.exchange.webservices.data.util.CachedContent;
 
 /**
  * Represents a file attachment.
  */
 public final class FileAttachment extends Attachment {
-
   /**
-   * The file name.
+   * The content
    */
-  private String fileName;
+  private ByteSource content;
 
-  /**
-   * The content stream.
-   */
-  private InputStream contentStream;
-
-  /**
-   * The content.
-   */
-  private byte[] content;
-
-  /**
-   * The load to stream.
-   */
-  private OutputStream loadToStream;
+  // The cached content if this is part of a response
+  private CachedContent cachedContent;
 
   /**
    * The is contact photo.
@@ -94,8 +76,7 @@ public final class FileAttachment extends Attachment {
    */
   @Override
   protected void validate(int attachmentIndex) throws ServiceValidationException {
-    if ((this.fileName == null || this.fileName.isEmpty())
-        && this.content == null && this.contentStream == null) {
+    if (this.content == null) {
       throw new ServiceValidationException(String.format(
           "The content of the file attachment at index %d must be set.",
           attachmentIndex));
@@ -118,32 +99,14 @@ public final class FileAttachment extends Attachment {
       if (reader.getLocalName().equals(XmlElementNames.IsContactPhoto)) {
         this.isContactPhoto = reader.readElementValue(Boolean.class);
       } else if (reader.getLocalName().equals(XmlElementNames.Content)) {
-        if (this.loadToStream != null) {
-          reader.readBase64ElementValue(this.loadToStream);
-        } else {
-          // If there's a file attachment content handler, use it.
-          // Otherwise
-          // load the content into a byte array.
-          // TODO: Should we mark the attachment to indicate that
-          // content is stored elsewhere?
-          if (reader.getService().getFileAttachmentContentHandler() != null) {
-            OutputStream outputStream = reader.getService()
-                .getFileAttachmentContentHandler()
-                .getOutputStream(getId());
-            if (outputStream != null) {
-              reader.readBase64ElementValue(outputStream);
-            } else {
-              this.content = reader.readBase64ElementValue();
-            }
-          } else {
-            this.content = reader.readBase64ElementValue();
-          }
+        if (cachedContent != null) {
+          cachedContent.delete();
         }
-
+        cachedContent = reader.readBase64ElementValue();
+        content = cachedContent.source();
         result = true;
       }
     }
-
     return result;
   }
 
@@ -169,6 +132,10 @@ public final class FileAttachment extends Attachment {
   @Override
   public void writeElementsToXml(EwsServiceXmlWriter writer)
       throws Exception {
+    if (content == null) {
+      EwsUtilities.ewsAssert(
+          false, "FileAttachment.WriteElementsToXml", "The attachment's content is not set.");
+    }
     super.writeElementsToXml(writer);
     // ExchangeVersion ev=writer.getService().getRequestedServerVersion();
     if (writer.getService().getRequestedServerVersion().ordinal() >
@@ -177,117 +144,9 @@ public final class FileAttachment extends Attachment {
       writer.writeElementValue(XmlNamespace.Types,
           XmlElementNames.IsContactPhoto, this.isContactPhoto);
     }
-
     writer.writeStartElement(XmlNamespace.Types, XmlElementNames.Content);
-
-    if (!(this.fileName == null || this.fileName.isEmpty())) {
-      File fileStream = new File(this.fileName);
-      FileInputStream fis = null;
-      try {
-        fis = new FileInputStream(fileStream);
-        writer.writeBase64ElementValue(fis);
-      } finally {
-        if (fis != null) {
-          fis.close();
-        }
-      }
-
-    } else if (this.contentStream != null) {
-      writer.writeBase64ElementValue(this.contentStream);
-    } else if (this.content != null) {
-      writer.writeBase64ElementValue(this.content);
-    } else {
-      EwsUtilities
-          .ewsAssert(false, "FileAttachment.WriteElementsToXml", "The attachment's content is not set.");
-    }
-
+    writer.writeBase64ElementValue(content);
     writer.writeEndElement();
-  }
-
-  /**
-   * Loads the content of the file attachment into the specified stream.
-   * Calling this method results in a call to EWS.
-   *
-   * @param stream the stream
-   * @throws Exception the exception
-   */
-  public void load(OutputStream stream) throws Exception {
-    this.loadToStream = stream;
-
-    try {
-      this.load();
-    } finally {
-      this.loadToStream = null;
-    }
-  }
-
-  /**
-   * Loads the content of the file attachment into the specified file.
-   * Calling this method results in a call to EWS.
-   *
-   * @param fileName the file name
-   * @throws Exception the exception
-   */
-  public void load(String fileName) throws Exception {
-    File fileStream = new File(fileName);
-
-    try {
-      this.loadToStream = new FileOutputStream(fileStream);
-      this.load();
-      this.loadToStream.flush();
-    } finally {
-      IOUtils.closeQuietly(this.loadToStream);
-      this.loadToStream = null;
-    }
-
-    this.fileName = fileName;
-    this.content = null;
-    this.contentStream = null;
-  }
-
-  /**
-   * Gets the name of the file the attachment is linked to.
-   *
-   * @return the file name
-   */
-  public String getFileName() {
-    return this.fileName;
-  }
-
-  /**
-   * Sets the file name.
-   *
-   * @param fileName the new file name
-   */
-  protected void setFileName(String fileName) {
-    this.throwIfThisIsNotNew();
-
-    this.fileName = fileName;
-    this.content = null;
-    this.contentStream = null;
-  }
-
-  /**
-   * Gets  the content stream.Gets the name of the file the attachment
-   * is linked to.
-   *
-   * @return The content stream
-   */
-  protected InputStream getContentStream() {
-    return this.contentStream;
-  }
-
-  /**
-   * Sets the content stream.
-   *
-   * @param contentStream the new content stream
-   */
-  protected void setContentStream(InputStream contentStream) {
-    this.throwIfThisIsNotNew();
-
-    this.contentStream = contentStream;
-    this.content = null;
-    this.fileName = null;
   }
 
   /**
@@ -296,7 +155,7 @@ public final class FileAttachment extends Attachment {
    *
    * @return the content
    */
-  public byte[] getContent() {
+  public ByteSource getContent() {
     return this.content;
   }
 
@@ -305,12 +164,13 @@ public final class FileAttachment extends Attachment {
    *
    * @param content the new content
    */
-  protected void setContent(byte[] content) {
+  protected void setContent(ByteSource content) {
     this.throwIfThisIsNotNew();
 
+    if (cachedContent != null) {
+      cachedContent.delete();
+    }
     this.content = content;
-    this.fileName = null;
-    this.contentStream = null;
   }
 
   /**
@@ -340,4 +200,12 @@ public final class FileAttachment extends Attachment {
     this.isContactPhoto = isContactPhoto;
   }
 
+  @Override public void close() throws Exception {
+    if (cachedContent != null) {
+      cachedContent.delete();
+      cachedContent = null;
+      content = null;
+    }
+
+  }
 }

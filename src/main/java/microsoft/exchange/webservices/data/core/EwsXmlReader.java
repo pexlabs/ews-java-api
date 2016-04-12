@@ -23,11 +23,21 @@
 
 package microsoft.exchange.webservices.data.core;
 
+import static javafx.scene.input.KeyCode.X;
+import static javax.xml.stream.XMLStreamConstants.CDATA;
+import static javax.xml.stream.XMLStreamConstants.CHARACTERS;
+import static javax.xml.stream.XMLStreamConstants.COMMENT;
+import static javax.xml.stream.XMLStreamConstants.PROCESSING_INSTRUCTION;
+import static javax.xml.stream.XMLStreamConstants.SPACE;
+
+import com.google.common.base.Charsets;
+import com.google.common.io.ByteSink;
 import microsoft.exchange.webservices.data.core.enumeration.misc.XmlNamespace;
 import microsoft.exchange.webservices.data.core.exception.service.local.ServiceXmlDeserializationException;
 import microsoft.exchange.webservices.data.misc.OutParam;
 import microsoft.exchange.webservices.data.security.XmlNodeType;
-import org.apache.commons.codec.binary.Base64;
+import microsoft.exchange.webservices.data.util.CachedContent;
+import org.apache.commons.codec.binary.Base64OutputStream;
 import org.apache.commons.lang3.StringUtils;
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
@@ -35,7 +45,6 @@ import org.apache.commons.logging.LogFactory;
 import javax.xml.namespace.QName;
 import javax.xml.stream.XMLEventReader;
 import javax.xml.stream.XMLInputFactory;
-import javax.xml.stream.XMLStreamConstants;
 import javax.xml.stream.XMLStreamException;
 import javax.xml.stream.events.Attribute;
 import javax.xml.stream.events.Characters;
@@ -46,7 +55,6 @@ import javax.xml.stream.events.XMLEvent;
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.FileNotFoundException;
-import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
 import java.io.UnsupportedEncodingException;
@@ -57,11 +65,6 @@ import java.io.UnsupportedEncodingException;
 public class EwsXmlReader {
 
   private static final Log LOG = LogFactory.getLog(EwsXmlReader.class);
-
-  /**
-   * The Read write buffer size.
-   */
-  private static final int ReadWriteBufferSize = 4096;
 
   /**
    * The xml reader.
@@ -199,7 +202,7 @@ public class EwsXmlReader {
         throw new ServiceXmlDeserializationException("Unexpected end of XML document.");
       } else {
         XMLEvent event = xmlReader.nextEvent();
-        if (event.getEventType() == XMLStreamConstants.CHARACTERS) {
+        if (event.getEventType() == CHARACTERS) {
           Characters characters = (Characters) event;
           if (!keepWhiteSpace)
             if (characters.isIgnorableWhiteSpace()
@@ -454,7 +457,7 @@ public class EwsXmlReader {
       if (this.presentEvent.isCharacters()) {
         final StringBuilder elementValue = new StringBuilder();
         do {
-          if (this.getNodeType().nodeType == XmlNodeType.CHARACTERS) {
+          if (this.getNodeType().nodeType == CHARACTERS) {
             Characters characters = (Characters) this.presentEvent;
             if (keepWhiteSpace || (!characters.isIgnorableWhiteSpace()
                 && !characters.isWhiteSpace())) {
@@ -476,9 +479,9 @@ public class EwsXmlReader {
         return "";
       } else {
         throw new ServiceXmlDeserializationException(
-            getReadValueErrMsg("Could not find " + XmlNodeType.getString(XmlNodeType.CHARACTERS)));
+            getReadValueErrMsg("Could not find " + XmlNodeType.getString(CHARACTERS)));
       }
-    } else if (this.presentEvent.getEventType() == XmlNodeType.CHARACTERS
+    } else if (this.presentEvent.getEventType() == CHARACTERS
         && this.presentEvent.isCharacters()) {
                         /*
                          * if(this.presentEvent.asCharacters().getData().equals("<")) {
@@ -487,7 +490,7 @@ public class EwsXmlReader {
       final StringBuilder data = new StringBuilder(charData == null ? "" : charData);
       do {
         this.read(keepWhiteSpace);
-        if (this.getNodeType().nodeType == XmlNodeType.CHARACTERS) {
+        if (this.getNodeType().nodeType == CHARACTERS) {
           Characters characters = (Characters) this.presentEvent;
           if (keepWhiteSpace || (!characters.isIgnorableWhiteSpace()
               && !characters.isWhiteSpace())) {
@@ -549,44 +552,53 @@ public class EwsXmlReader {
     return EwsUtilities.parse(cls, this.readValue());
   }
 
-  /**
-   * Reads the base64 element value.
-   *
-   * @return byte[]
-   * @throws ServiceXmlDeserializationException the service xml deserialization exception
-   * @throws XMLStreamException the XML stream exception
-   * @throws IOException signals that an I/O exception has occurred
-   */
-  public byte[] readBase64ElementValue()
-      throws ServiceXmlDeserializationException, XMLStreamException,
-      IOException {
-    this.ensureCurrentNodeIsStartElement();
-
-    byte[] buffer = null;
-
-    ByteArrayOutputStream byteArrayStream = new ByteArrayOutputStream();
-
-    buffer = Base64.decodeBase64(this.xmlReader.getElementText().toString());
-    byteArrayStream.write(buffer);
-
-    return byteArrayStream.toByteArray();
-
+  public CachedContent readBase64ElementValue() throws Exception {
+    CachedContent content = new CachedContent();
+    try {
+      readBase64ElementValue(content.sink());
+      return content;
+    } catch (Exception e) {
+      content.delete();
+      throw e;
+    }
   }
 
-  /**
-   * Reads the base64 element value.
-   *
-   * @param outputStream the output stream
-   * @throws Exception the exception
-   */
-  public void readBase64ElementValue(OutputStream outputStream)
-      throws Exception {
-    this.ensureCurrentNodeIsStartElement();
+  public byte[] readBase64ElementValueAsBytes() throws Exception {
+    ByteArrayOutputStream baos = new ByteArrayOutputStream();
+    readBase64ElementValue(baos);
+    return baos.toByteArray();
+  }
 
-    byte[] buffer = null;
-    buffer = Base64.decodeBase64(this.xmlReader.getElementText().toString());
-    outputStream.write(buffer);
-    outputStream.flush();
+  public void readBase64ElementValue(ByteSink sink) throws Exception {
+    try (OutputStream os = sink.openBufferedStream()) {
+      readBase64ElementValue(os);
+    }
+  }
+
+  // Note: Closed output stream upon completion
+  private void readBase64ElementValue(OutputStream os) throws Exception {
+    if (isStartElement()) {
+      read();
+    }
+    Base64OutputStream decoderOut = new Base64OutputStream(os, false);
+    while (!presentEvent.isEndElement()) {
+      switch (presentEvent.getEventType()) {
+        case CHARACTERS:
+          String s = ((Characters) presentEvent).getData();
+          decoderOut.write(s.getBytes(Charsets.UTF_8));
+          break;
+        case PROCESSING_INSTRUCTION:
+        case COMMENT:
+          // Skip processing events
+          break;
+        default:
+          throw new XMLStreamException(
+              "Unexpected event while parsing BASE64 element value: " + presentEvent,
+              presentEvent.getLocation());
+      }
+      read();
+    }
+    decoderOut.close();
   }
 
   /**

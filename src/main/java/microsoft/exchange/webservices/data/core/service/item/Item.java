@@ -27,6 +27,7 @@ import microsoft.exchange.webservices.data.attribute.Attachable;
 import microsoft.exchange.webservices.data.attribute.ServiceObjectDefinition;
 import microsoft.exchange.webservices.data.core.EwsUtilities;
 import microsoft.exchange.webservices.data.core.ExchangeService;
+import microsoft.exchange.webservices.data.core.PropertyBag;
 import microsoft.exchange.webservices.data.core.PropertySet;
 import microsoft.exchange.webservices.data.core.XmlElementNames;
 import microsoft.exchange.webservices.data.core.service.ServiceObject;
@@ -64,6 +65,7 @@ import microsoft.exchange.webservices.data.property.complex.UniqueBody;
 import microsoft.exchange.webservices.data.property.definition.ExtendedPropertyDefinition;
 import microsoft.exchange.webservices.data.property.definition.PropertyDefinition;
 
+import java.io.Closeable;
 import java.util.ArrayList;
 import java.util.Date;
 import java.util.EnumSet;
@@ -75,7 +77,7 @@ import java.util.ListIterator;
  */
 @Attachable
 @ServiceObjectDefinition(xmlElementName = XmlElementNames.Item)
-public class Item extends ServiceObject {
+public class Item extends ServiceObject implements AutoCloseable {
 
   /**
    * The parent attachment.
@@ -1187,4 +1189,16 @@ public class Item extends ServiceObject {
     return null;
   }
 
+  @Override
+  public void close() throws Exception {
+    PropertyBag bag = getPropertyBag();
+    if (bag.contains(ItemSchema.MimeContent)) {
+      MimeContent content = bag.getObjectFromPropertyDefinition(ItemSchema.MimeContent);
+      content.close();
+    }
+    if (bag.contains(ItemSchema.Attachments)) {
+      AttachmentCollection attachments = bag.getObjectFromPropertyDefinition(ItemSchema.Attachments);
+      attachments.close();
+    }
+  }
 }
