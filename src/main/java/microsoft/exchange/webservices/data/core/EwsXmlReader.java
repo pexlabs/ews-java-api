@@ -23,12 +23,9 @@
 
 package microsoft.exchange.webservices.data.core;
 
-import static javafx.scene.input.KeyCode.X;
-import static javax.xml.stream.XMLStreamConstants.CDATA;
 import static javax.xml.stream.XMLStreamConstants.CHARACTERS;
 import static javax.xml.stream.XMLStreamConstants.COMMENT;
 import static javax.xml.stream.XMLStreamConstants.PROCESSING_INSTRUCTION;
-import static javax.xml.stream.XMLStreamConstants.SPACE;
 
 import com.google.common.base.Charsets;
 import com.google.common.io.ByteSink;
@@ -81,6 +78,12 @@ public class EwsXmlReader {
    */
   private XMLEvent prevEvent;
 
+  private static final XMLInputFactory xmlInputFactory;
+  static {
+    xmlInputFactory = XMLInputFactory.newFactory();
+    xmlInputFactory.setProperty(XMLInputFactory.SUPPORT_DTD, false);
+  }
+
   /**
    * Initializes a new instance of the EwsXmlReader class.
    *
@@ -99,10 +102,7 @@ public class EwsXmlReader {
    * @throws Exception on error
    */
   protected XMLEventReader initializeXmlReader(InputStream stream) throws Exception {
-    XMLInputFactory inputFactory = XMLInputFactory.newInstance();
-    inputFactory.setProperty(XMLInputFactory.SUPPORT_DTD, false);
-
-    return inputFactory.createXMLEventReader(stream);
+    return xmlInputFactory.createXMLEventReader(stream);
   }
 
 
