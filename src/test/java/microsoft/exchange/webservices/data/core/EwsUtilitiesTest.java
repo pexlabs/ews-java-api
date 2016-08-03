@@ -202,4 +202,16 @@ public class EwsUtilitiesTest {
     assertEquals(input, EwsUtilities.parse(String.class, input));
   }
 
+  private final String HTML = "<?xml version=\"1.0\" encoding=\"iso-8859-1\"?>\n"
+                             + "<!DOCTYPE html PUBLIC \"-//W3C//DTD XHTML 1.0 Transitional//EN\"\n"
+                             + "         \"http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd\">\n"
+                             + "<html xmlns=\"http://www.w3.org/1999/xhtml\" xml:lang=\"en\" lang=\"en\">\n"
+                             + "\t<head>\n" + "\t\t<title>404 - Not Found</title>\n" + "\t</head>\n"
+                             + "\t<body>\n" + "\t\t<h1>404 - Not Found</h1>\n"
+                             + "\t\t<script type=\"text/javascript\" src=\"http://gp1.wpc.edgecastcdn.net/00222B/jtest/pilot_dns_best_pop.js\"></script>\n"
+                             + "\t</body>\n" + "</html>";
+  @Test
+  public void testPrettyXml() throws Exception {
+    EwsUtilities.prettyXml(HTML);
+  }
 }

@@ -23,6 +23,8 @@
 
 package microsoft.exchange.webservices.data.core;
 
+import static microsoft.exchange.webservices.data.security.SafeXmlFactory.factory;
+
 import microsoft.exchange.webservices.data.ISelfValidate;
 import microsoft.exchange.webservices.data.attribute.EwsEnum;
 import microsoft.exchange.webservices.data.attribute.RequiredServerVersion;
@@ -588,6 +590,21 @@ public final class EwsUtilities {
   }
 
   private static final DocumentBuilderFactory documentBuilderFactory = DocumentBuilderFactory.newInstance();
+  static {
+    try {
+      // Disable validation and loading of external DTD references
+      documentBuilderFactory.setValidating(false);
+      documentBuilderFactory.setNamespaceAware(true);
+      documentBuilderFactory.setFeature("http://xml.org/sax/features/namespaces", false);
+      documentBuilderFactory.setFeature("http://xml.org/sax/features/validation", false);
+      documentBuilderFactory.setFeature("http://apache.org/xml/features/nonvalidating/load-dtd-grammar", false);
+      documentBuilderFactory
+          .setFeature("http://apache.org/xml/features/nonvalidating/load-external-dtd", false);
+    } catch (Exception e) {
+      throw new IllegalStateException("Unable to initialize DocumentBuilderFactory", e);
+    }
+  }
+
   private static final TransformerFactory transformerFactory = TransformerFactory.newInstance();
 
   public static String prettyXml(String xml) {
