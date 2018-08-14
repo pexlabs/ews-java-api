@@ -28,7 +28,7 @@ public class PexTest {
   @Test
   public void streamingMime() throws Exception {
     ExchangeService ews = factory.newExchangeService(ExchangeVersion.Exchange2010_SP2);
-    ews.setCredentials(new WebCredentials("dac.test@pexlabs.com", "pexlabs!rocks1"));
+    ews.setCredentials(new WebCredentials("shared.test@pexlabs.com", "pexlabs!rocks1"));
     ews.setUrl(URI.create("https://outlook.office365.com/EWS/Exchange.asmx"));
     ews.setTraceFlags(EnumSet.allOf(TraceFlags.class));
     ews.setTraceEnabled(true);
